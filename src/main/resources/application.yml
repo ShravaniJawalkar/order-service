@@ -19,7 +19,7 @@ server:
 
 service:
   user:
-    url: http://localhost:8086
+    url: http://localhost:8086/user-service
   product:
-    url: http://localhost:8089
+    url: http://localhost:8089/product-service
 

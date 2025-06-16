@@ -10,8 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/api/order")
 public class OrderController {
     @Autowired
     private OrderService orderService;
@@ -21,7 +23,7 @@ public class OrderController {
         return orderService.createOrder(orders);
     }
 
-    @PutMapping("/{orderId}/status")
+    @PatchMapping("/{orderId}/status")
     public ResponseEntity<String> updateOrderStatus(@PathVariable long orderId, @RequestBody String status) {
         String responseStatus = orderService.updateOrderStatus(orderId, status);
         return new ResponseEntity<>(responseStatus, HttpStatus.OK);
@@ -32,12 +34,12 @@ public class OrderController {
         return orderService.getOrderById(orderId);
     }
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<OrderDetails> getUserOrder(@PathVariable long userId) {
+    @GetMapping("/user/{userId}/orders")
+    public ResponseEntity<List<OrderDetails>> getUserOrder(@PathVariable long userId) {
         return orderService.getOrderByUserId(userId);
     }
 
-    @DeleteMapping("/{orderId}")
+    @DeleteMapping("/{orderId}/cancel")
     public ResponseEntity<String> deleteOrder(@PathVariable long orderId) {
         String response = orderService.deleteOrder(orderId);
         return new ResponseEntity<>(response, HttpStatus.OK);

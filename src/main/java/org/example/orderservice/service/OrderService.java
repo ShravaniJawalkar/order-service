@@ -14,6 +14,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -184,24 +186,30 @@ public class OrderService {
         }
     }
 
-    public ResponseEntity<OrderDetails> getOrderByUserId(long userId) {
-        OrderDetails orderResponse = new OrderDetails();
-        orderRepository.findByUserId(userId).ifPresentOrElse(order -> {
-            Orders typeOrder = (Orders) order;
-            orderResponse.setOrderId(typeOrder.getId());
-            orderResponse.setUserName(getUserName(typeOrder.getUserId()));
-            orderResponse.setTotalAmount(typeOrder.getTotalAmount());
-            orderResponse.setStatus(String.valueOf(typeOrder.getStatus()));
-            orderResponse.setOrderDetails(typeOrder.getItems().stream()
+    public ResponseEntity<List<OrderDetails>> getOrderByUserId(long userId) {
+        List<OrderDetails> orderResponseList = new ArrayList<>();
+        List<Orders> orders = orderRepository.findAllByUserId(userId);
+
+        if (orders.isEmpty()) {
+            throw new HttpClientErrorException(HttpStatus.NOT_FOUND, "Order with User ID " + userId + " does not exist");
+        }
+
+        orders.forEach(orderDetails -> {
+            OrderDetails orderResponse = new OrderDetails();
+            orderResponse.setOrderId(orderDetails.getId());
+            orderResponse.setUserName(getUserName(orderDetails.getUserId()));
+            orderResponse.setTotalAmount(orderDetails.getTotalAmount());
+            orderResponse.setStatus(String.valueOf(orderDetails.getStatus()));
+            orderResponse.setOrderDetails(orderDetails.getItems().stream()
                     .map(item -> OrderItemsDetails.builder()
                             .productId(item.getProductId())
                             .quantity(item.getQuantity())
                             .totalPrice(item.getTotalPrice())
                             .build())
                     .toList());
-        }, () -> {
-            throw new HttpClientErrorException(HttpStatus.NOT_FOUND, "Order with User ID " + userId + " does not exist");
+            orderResponseList.add(orderResponse);
         });
-        return new ResponseEntity<>(orderResponse,HttpStatus.OK);
+
+        return new ResponseEntity<>(orderResponseList, HttpStatus.OK);
     }
 }
