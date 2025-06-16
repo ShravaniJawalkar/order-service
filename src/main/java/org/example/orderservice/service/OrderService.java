@@ -1,6 +1,7 @@
 package org.example.orderservice.service;
 
 import jakarta.validation.constraints.NotNull;
+import lombok.extern.slf4j.Slf4j;
 import org.example.orderservice.dao.*;
 import org.example.orderservice.repository.OrderItemsRepository;
 import org.example.orderservice.repository.OrderRepository;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class OrderService {
 
     @Autowired
@@ -161,7 +163,8 @@ public class OrderService {
             if (userServiceResponse != null) {
                 return userServiceResponse.getUserName();
             } else {
-                throw new HttpClientErrorException(HttpStatus.NOT_FOUND, "User with ID " + userId + " does not exist");
+                log.error("Order with User ID {} does not exist. Status: {}", userId, HttpStatus.NOT_FOUND);
+                return HttpStatus.NOT_FOUND.toString();
             }
         }
         return response.getStatusCode().toString();
@@ -179,7 +182,8 @@ public class OrderService {
     public String deleteOrder(long orderId) {
         Optional<Orders> orders = orderRepository.findById(orderId);
         if (orders.isEmpty()) {
-            throw new HttpClientErrorException(HttpStatus.NOT_FOUND, "Order with ID " + orderId + " does not exist");
+            log.error("Order with ID {} does not exist. Status: {}", orderId, HttpStatus.NOT_FOUND);
+            return String.format(HttpStatus.NOT_FOUND.toString(), "Order with ID " + orderId + " does not exist");
         } else {
             orderRepository.deleteById(orderId);
             return String.format("Order with ID %d has been deleted", orderId);
@@ -191,7 +195,8 @@ public class OrderService {
         List<Orders> orders = orderRepository.findAllByUserId(userId);
 
         if (orders.isEmpty()) {
-            throw new HttpClientErrorException(HttpStatus.NOT_FOUND, "Order with User ID " + userId + " does not exist");
+            log.error("Order with User ID {} does not exist. Status: {}", userId, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(orderResponseList, HttpStatus.NOT_FOUND);
         }
 
         orders.forEach(orderDetails -> {
