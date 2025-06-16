@@ -34,7 +34,7 @@ public class OrderService {
     @Value("${service.user.url}")
     private String userServiceUrl;
 
-    @Value("${service.product.url}")
+    @Value("${services.product.url}")
     private String productServiceUrl;
 
     @Transactional
@@ -99,7 +99,7 @@ public class OrderService {
 
     private boolean existsByProductId(@NotNull Long productId) {
         try {
-            String url = productServiceUrl + "/api/products/" + productId;
+            String url = productServiceUrl + "products/" + productId;
             ResponseEntity<ProductResponse> response = restTemplate.getForEntity(url, ProductResponse.class);
             return response.getStatusCode() == HttpStatus.OK;
         } catch (HttpClientErrorException.NotFound e) {
@@ -110,7 +110,7 @@ public class OrderService {
 
     private ProductResponse getProductDetails(@NotNull Long productId) {
         try {
-            String url = productServiceUrl + "/api/products/" + productId;
+            String url = productServiceUrl + "products/" + productId;
             ResponseEntity<ProductResponse> response = restTemplate.getForEntity(url, ProductResponse.class);
             return response.getBody();
         } catch (HttpClientErrorException.NotFound e) {
@@ -122,7 +122,7 @@ public class OrderService {
     private boolean validateUser(Long userId) {
         try {
             // Example REST call to UserService
-            String url = userServiceUrl + "/api/users/" + userId;
+            String url = userServiceUrl + userId;
             ResponseEntity<UserServiceResponse> response = restTemplate.getForEntity(url, UserServiceResponse.class);
             return response.getStatusCode() == HttpStatus.OK; // User exists if 200 OK is returned.
         } catch (HttpClientErrorException.NotFound e) {
@@ -156,7 +156,7 @@ public class OrderService {
     }
 
     private String getUserName(Long userId) {
-        String url = userServiceUrl + "/api/users/" + userId;
+        String url = userServiceUrl + userId;
         ResponseEntity<UserServiceResponse> response = restTemplate.getForEntity(url, UserServiceResponse.class);
         if (response.getStatusCode() == HttpStatus.OK) {
             UserServiceResponse userServiceResponse = response.getBody();

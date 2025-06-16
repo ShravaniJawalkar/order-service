@@ -10,7 +10,6 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-
 server:
   address: localhost
   port: 8084
@@ -19,7 +18,13 @@ server:
 
 service:
   user:
-    url: http://localhost:8086/user-service
+    url: http://localhost:9001/api/users/
   product:
-    url: http://localhost:8089/product-service
+    url: http://localhost:9001/api/
 
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8087/eureka-discovery/eureka/
+    register-with-eureka: true
+    fetch-registry: true
