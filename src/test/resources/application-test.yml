@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+
+# Define the placeholders that your application code references
+services:
+  user:
+    url: http://localhost:9001/api/users/
+  product:
+    url: http://localhost:9001/api/
+
+eureka:
+  client:
+    enabled: false # Disable Eureka for tests
+
+server:
+  port: 0 # Use random port for tests

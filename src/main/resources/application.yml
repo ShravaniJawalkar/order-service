@@ -1,30 +1,22 @@
 spring:
   application:
     name: order-service
-  datasource:
-    url: jdbc:postgresql://localhost:5432/OrderService
-    username: ecommerceOrder
-    password: order1234
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    hibernate:
-      ddl-auto: update
+  config:
+    import: configserver:http://localhost:8083/config-server/
+  cloud:
+    config:
+      profile: local # Profile to fetch from config server
+      name: order-service # Application name (should match the config file prefix)
+      label: master # Git branch to use
+      fail-fast: true # Fail if config server is not available
+      retry:
+        initial-interval: 1000
+        max-attempts: 6
+        max-interval: 2000
+        multiplier: 1.1
+
 server:
   address: localhost
   port: 8084
   servlet:
     context-path: /order-service
-
-service:
-  user:
-    url: http://localhost:9001/api/users/
-  product:
-    url: http://localhost:9001/api/
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8087/eureka-discovery/eureka/
-    register-with-eureka: true
-    fetch-registry: true

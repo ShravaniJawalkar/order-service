@@ -31,7 +31,7 @@ public class OrderService {
     @Autowired
     private OrderItemsRepository orderItemsRepository;
 
-    @Value("${service.user.url}")
+    @Value("${services.user.url}")
     private String userServiceUrl;
 
     @Value("${services.product.url}")
