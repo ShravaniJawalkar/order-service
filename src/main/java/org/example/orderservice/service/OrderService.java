@@ -1,22 +1,24 @@
 package org.example.orderservice.service;
 
-import jakarta.validation.constraints.NotNull;
+
 import lombok.extern.slf4j.Slf4j;
 import org.example.orderservice.dao.*;
 import org.example.orderservice.repository.OrderItemsRepository;
 import org.example.orderservice.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -31,16 +33,16 @@ public class OrderService {
     @Autowired
     private OrderItemsRepository orderItemsRepository;
 
-    @Value("${services.user.url}")
-    private String userServiceUrl;
+    @Autowired
+    private UserServiceClient userServiceClient;
 
-    @Value("${services.product.url}")
-    private String productServiceUrl;
+    @Autowired
+    private ProductServiceClient productServiceClient;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ResponseEntity<OrderResponse> createOrder(OrderRequest orderRequest) {
-        ResponseEntity<OrderResponse> response =  validateRequest(orderRequest);
-        if(response.getStatusCode() != HttpStatus.OK) {
+        ResponseEntity<OrderResponse> response = validateRequest(orderRequest);
+        if (response.getStatusCode() != HttpStatus.OK) {
             return response;
         }
         // Create and save the order
@@ -64,71 +66,106 @@ public class OrderService {
         if (order.getId() == null) {
             return new ResponseEntity<>(HttpStatus.UNPROCESSABLE_ENTITY);
         }
+        // Update the product quantity in the ProductService
+        updateProductQuantity(orderRequest, order);
         OrderResponse orderResponse = new OrderResponse();
         orderResponse.setOrderId(order.getId());
-        return new ResponseEntity<>(orderResponse,HttpStatus.OK);
+        return new ResponseEntity<>(orderResponse, HttpStatus.OK);
+    }
+
+    private void updateProductQuantity(OrderRequest orderRequest, Orders order) {
+        ResponseEntity<ProductResponse> response = productServiceClient.getProductDetails(orderRequest.getProductId());
+        ProductResponse product = Objects.requireNonNull(response.getBody());
+        orderRequest.setQuantity(product.getQuantity() - orderRequest.getQuantity());
+        ResponseEntity<String> productResponse = productServiceClient.updateProductQuantity(orderRequest);
+        if (productResponse.getStatusCode() != HttpStatus.OK) {
+            log.error("Failed to update product quantity for productId: {}", orderRequest.getProductId());
+            throw new HttpClientErrorException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to update product quantity");
+        }
+
     }
 
     private ResponseEntity<OrderResponse> validateRequest(OrderRequest orderRequest) {
         // Validate if user exists in UserService
-        boolean userExists = validateUser(orderRequest.getUserId());
-        if (!userExists) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+        HttpStatusCode userStatus = validateUser(orderRequest.getUserId());
+        //Validate if product exists in ProductService
+        HttpStatusCode productStatus = existsByProductId(orderRequest);
+        return (userStatus.isSameCodeAs(HttpStatus.OK) && productStatus.isSameCodeAs(HttpStatus.OK)) ?
+                new ResponseEntity<>(HttpStatus.OK) :
+                new ResponseEntity<>(userStatus.isSameCodeAs(HttpStatus.OK) ?
+                        productStatus : userStatus);
 
-        boolean productAvailable = existsByProductId(orderRequest.getProductId());
-        if (!productAvailable) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+    }
 
-        // Get product details from ProductService
-
-        ProductResponse productResponse = getProductDetails(orderRequest.getProductId());
-        if(productResponse==null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-        // Validate product price and quantity
+    private HttpStatusCode validateProductAndPriceQuantity(ProductResponse productResponse, OrderRequest orderRequest) {
+        //compare product price and quantity
         if (orderRequest.getPrice().compareTo(BigDecimal.valueOf(productResponse.getPrice())) != 0) {
-            return new ResponseEntity<>(HttpStatus.UNPROCESSABLE_ENTITY);
+            return HttpStatus.BAD_REQUEST;
         }
-        if( orderRequest.getQuantity() <= 0 || orderRequest.getQuantity().compareTo(productResponse.getQuantity()) != 0) {
-            return new ResponseEntity<>(HttpStatus.UNPROCESSABLE_ENTITY);
+        if (orderRequest.getQuantity() <= 0 || productResponse.getQuantity().compareTo(orderRequest.getQuantity()) < 0) {
+            return HttpStatus.BAD_REQUEST;
         }
-        return new ResponseEntity<>(HttpStatus.OK);
+        return HttpStatus.OK;
     }
 
-    private boolean existsByProductId(@NotNull Long productId) {
+    private HttpStatusCode existsByProductId(OrderRequest orderRequest) {
         try {
-            String url = productServiceUrl + "products/" + productId;
-            ResponseEntity<ProductResponse> response = restTemplate.getForEntity(url, ProductResponse.class);
-            return response.getStatusCode() == HttpStatus.OK;
+            ResponseEntity<ProductResponse> response = productServiceClient.getProductDetails(orderRequest.getProductId());
+            if (response.getStatusCode() == HttpStatus.OK) {
+                ProductResponse productResponse = response.getBody();
+                return productResponse != null ? validateProductAndPriceQuantity(productResponse, orderRequest) :
+                        HttpStatus.NO_CONTENT;
+            } else if (response.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
+                log.warn("Product service is unavailable, don't allow order creation for product: {}", orderRequest.getProductId());
+                return HttpStatus.SERVICE_UNAVAILABLE; // Reject order creation when service is down
+            } else {
+                return HttpStatus.INTERNAL_SERVER_ERROR; // Other status codes mean user validation failed
+            }
         } catch (HttpClientErrorException.NotFound e) {
-            return false;
+            log.info("Product with ID {} not found", orderRequest.getProductId());
+            return HttpStatus.NOT_FOUND; // User does not exist
+        } catch (RestClientException e) {
+            // This should not happen now because circuit breaker handles it with fallback
+            log.error("Unexpected RestClientException for productId {}: {}", orderRequest.getProductId(), e.getMessage());
+            return HttpStatus.GATEWAY_TIMEOUT; // or true, depending on your business logic
+        } catch (Exception e) {
+            // Any other unexpected exception
+            log.error("Unexpected exception during user validation for productId {}: {}", orderRequest.getProductId(), e.getMessage());
+            return HttpStatus.INTERNAL_SERVER_ERROR; // or true, depending on your business logic
         }
 
     }
 
-    private ProductResponse getProductDetails(@NotNull Long productId) {
+
+    private HttpStatusCode validateUser(Long userId) {
         try {
-            String url = productServiceUrl + "products/" + productId;
-            ResponseEntity<ProductResponse> response = restTemplate.getForEntity(url, ProductResponse.class);
-            return response.getBody();
-        } catch (HttpClientErrorException.NotFound e) {
-            return null;
-        }
+            ;
+            ResponseEntity<UserServiceResponse> response = userServiceClient.getUserDetail(userId);
 
+            // Handle both successful response and fallback response
+            if (response.getStatusCode() == HttpStatus.OK) {
+                return response.getStatusCode(); // User exists
+            } else if (response.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
+                log.warn("User service is unavailable, don't allow order creation for userId: {}", userId);
+                return response.getStatusCode(); // Reject order creation when service is down
+            } else {
+                return response.getStatusCode(); // Other status codes mean user validation failed
+            }
+
+        } catch (HttpClientErrorException.NotFound e) {
+            log.info("User with ID {} not found", userId);
+            return HttpStatus.NOT_FOUND; // User does not exist
+        } catch (RestClientException e) {
+            // This should not happen now because circuit breaker handles it with fallback
+            log.error("Unexpected RestClientException for userId {}: {}", userId, e.getMessage());
+            return HttpStatus.GATEWAY_TIMEOUT; // or true, depending on your business logic
+        } catch (Exception e) {
+            // Any other unexpected exception
+            log.error("Unexpected exception during user validation for userId {}: {}", userId, e.getMessage());
+            return HttpStatus.INTERNAL_SERVER_ERROR; // or true, depending on your business logic
+        }
     }
 
-    private boolean validateUser(Long userId) {
-        try {
-            // Example REST call to UserService
-            String url = userServiceUrl + userId;
-            ResponseEntity<UserServiceResponse> response = restTemplate.getForEntity(url, UserServiceResponse.class);
-            return response.getStatusCode() == HttpStatus.OK; // User exists if 200 OK is returned.
-        } catch (HttpClientErrorException.NotFound e) {
-            return false; // User does not exist.
-        }
-    }
 
     public ResponseEntity<OrderDetails> getOrderById(Long orderId) {
         Optional<Orders> order = orderRepository.findById(orderId);
@@ -137,37 +174,50 @@ public class OrderService {
             return new ResponseEntity<>(orderResponse, HttpStatus.NOT_FOUND);
         } else {
             order.ifPresent(orders -> {
-                orderResponse.setOrderId(orders.getId());
-                orderResponse.setUserName(getUserName(orders.getUserId()));
-                orderResponse.setTotalAmount(orders.getTotalAmount());
-                orderResponse.setStatus(String.valueOf(orders.getStatus()));
-                orderResponse.setOrderDetails(orders.getItems().stream()
-                        .map(item -> OrderItemsDetails.builder()
-                                .itemId(item.getId())
-                                .productId(item.getProductId())
-                                .quantity(item.getQuantity())
-                                .totalPrice(item.getTotalPrice())
-                                .build())
-                        .toList());
+                setOrderResponseDetails(orderResponse, orders);
             });
 
         }
-        return new ResponseEntity<>(orderResponse,HttpStatus.OK);
+        return new ResponseEntity<>(orderResponse, HttpStatus.OK);
+    }
+
+    private void setOrderResponseDetails(OrderDetails orderResponse, Orders orders) {
+        String userName = getUserName(orders.getUserId());
+        if (!userName.equals("404")) {
+            orderResponse.setOrderId(orders.getId());
+            orderResponse.setUserName(userName);
+            orderResponse.setTotalAmount(orders.getTotalAmount());
+            orderResponse.setStatus(String.valueOf(orders.getStatus()));
+            orderResponse.setOrderDetails(orders.getItems().stream()
+                    .map(item -> OrderItemsDetails.builder()
+                            .itemId(item.getId())
+                            .productId(item.getProductId())
+                            .quantity(item.getQuantity())
+                            .totalPrice(item.getTotalPrice())
+                            .build())
+                    .toList());
+
+        }
     }
 
     private String getUserName(Long userId) {
-        String url = userServiceUrl + userId;
-        ResponseEntity<UserServiceResponse> response = restTemplate.getForEntity(url, UserServiceResponse.class);
-        if (response.getStatusCode() == HttpStatus.OK) {
-            UserServiceResponse userServiceResponse = response.getBody();
-            if (userServiceResponse != null) {
-                return userServiceResponse.getUserName();
-            } else {
-                log.error("Order with User ID {} does not exist. Status: {}", userId, HttpStatus.NOT_FOUND);
-                return HttpStatus.NOT_FOUND.toString();
+        try {
+            ResponseEntity<UserServiceResponse> response = userServiceClient.getUserDetail(userId);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return response.getBody().getUserName();
+            } else if (response.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE) {
+                log.warn("User service unavailable for userId: {}, returning default name", userId);
+                return "Service Unavailable"; // Return a default name when service is down
             }
+
+        } catch (HttpClientErrorException.NotFound e) {
+            log.error("User with ID {} not found", userId);
+        } catch (Exception e) {
+            log.error("Error getting user name for userId {}: {}", userId, e.getMessage());
         }
-        return response.getStatusCode().toString();
+
+        return String.valueOf(HttpStatus.NOT_FOUND.value());
     }
 
     @Transactional
