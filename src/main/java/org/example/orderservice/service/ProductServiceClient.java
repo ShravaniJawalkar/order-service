@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.orderservice.dao.OrderRequest;
 import org.example.orderservice.dao.ProductResponse;
 import org.example.orderservice.dao.UserServiceResponse;
+import org.example.orderservice.repository.Order;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -92,20 +95,20 @@ public class ProductServiceClient {
 
     @CircuitBreaker(name = "product-service", fallbackMethod = "updateProductQuantityFallback")
     public ResponseEntity<String> updateProductQuantity(OrderRequest orderRequest) {
-        String url = productServiceUrl + "products/" + orderRequest.getProductId()+"/quantity";
+        String url = productServiceUrl + "products/" + orderRequest.getProductId() + "/quantity";
         log.info("Calling product service at: {}", url);
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setAccept(List.of(MediaType.APPLICATION_JSON));
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            Map<String,Object> variables = new HashMap<>();
-            variables.put("quantity",orderRequest.getQuantity());
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("quantity", orderRequest.getQuantity());
             ObjectMapper objectMapper = new ObjectMapper();
             // Create the request body
             String requestBody = objectMapper.writeValueAsString(variables);
 
-            HttpEntity<?> requestEntity = new HttpEntity<>(requestBody,headers);
+            HttpEntity<?> requestEntity = new HttpEntity<>(requestBody, headers);
 
             ResponseEntity<String> response = restTemplate.exchange(
                     url,
@@ -151,5 +154,9 @@ public class ProductServiceClient {
                 .body(defaultResponse);
         // OR return just the status without body:
         // return new ResponseEntity<>(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    public String getOrderType(Order orderType) {
+        return orderType.orderType();
     }
 }

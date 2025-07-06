@@ -3,9 +3,11 @@ package org.example.orderservice.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.example.orderservice.dao.*;
+import org.example.orderservice.repository.Order;
 import org.example.orderservice.repository.OrderItemsRepository;
 import org.example.orderservice.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +40,11 @@ public class OrderService {
 
     @Autowired
     private ProductServiceClient productServiceClient;
+
+    @Autowired
+    @Qualifier("newOrder")
+    private Order orderType;
+
 
     @Transactional(rollbackFor = Exception.class)
     public ResponseEntity<OrderResponse> createOrder(OrderRequest orderRequest) {
@@ -266,5 +273,9 @@ public class OrderService {
         });
 
         return new ResponseEntity<>(orderResponseList, HttpStatus.OK);
+    }
+
+    public String getProductType(){
+        return this.productServiceClient.getOrderType(this.orderType);
     }
 }
