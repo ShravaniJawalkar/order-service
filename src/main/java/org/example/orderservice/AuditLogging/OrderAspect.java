@@ -83,7 +83,7 @@ public class OrderAspect {
     }
 
     // this matches all method which has argument of type Long
-    @After("args(long)")
+    @After(" serviceLayer() && args(long)")
     public void afterMethodWithLongArg(JoinPoint joinPoint) {
         String methodName = joinPoint.getSignature().getName();
         String className = joinPoint.getTarget().getClass().getSimpleName();
@@ -91,7 +91,7 @@ public class OrderAspect {
     }
 
     // this matches any method which has argument as object of type OrderRequest
-    @Before("args(org.example.orderservice.dao.OrderRequest)")
+    @Before("serviceLayer() && args(org.example.orderservice.dao.OrderRequest)")
     public void beforeOrderRequest(JoinPoint joinPoint) {
         String methodName = joinPoint.getSignature().getName();
         String className = joinPoint.getTarget().getClass().getSimpleName();
@@ -101,7 +101,7 @@ public class OrderAspect {
     // if we have a interface and it's two implementations,
     // we can use @args to match the method which has the particular class as argument
     // And that class has given annotation
-    @After("@args(org.springframework.stereotype.Component)")
+    @After("serviceLayer() && @args(org.springframework.stereotype.Component)")
     public void afterOrderRequest(JoinPoint joinPoint) {
         String methodName = joinPoint.getSignature().getName();
         String className = joinPoint.getTarget().getClass().getSimpleName();
@@ -119,7 +119,7 @@ public class OrderAspect {
     //here we can see the combination of pointcuts
     // so we can combine multiple pointcuts using || operator Or && operator
     // Much more specific - only your service classes, not all Spring services
-    @Around("serviceLayer() && !within(org.springframework..*)")
+    @Around("serviceLayer() || controllerLayer()")
     public Object aroundServiceLayer(ProceedingJoinPoint joinPoint) throws Throwable {
         String methodName = joinPoint.getSignature().getName();
         String className = joinPoint.getTarget().getClass().getSimpleName();
@@ -136,6 +136,7 @@ public class OrderAspect {
             log.info("Completed {}.{}()", className, methodName);
         }
     }
+
     // This advice is executed after the method execution
     // this advice only get executed if method completed it's execution and return result
     //method does not throw any exception
