@@ -12,6 +12,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
@@ -29,8 +32,6 @@ public class OrderService {
 
     @Autowired
     private OrderRepository orderRepository;
-    @Autowired
-    private RestTemplate restTemplate;
 
     @Autowired
     private OrderItemsRepository orderItemsRepository;
@@ -46,7 +47,7 @@ public class OrderService {
     private Order orderType;
 
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class,transactionManager = "getTransactionManager",propagation = Propagation.REQUIRED,isolation = Isolation.DEFAULT)
     public ResponseEntity<OrderResponse> createOrder(OrderRequest orderRequest) {
         ResponseEntity<OrderResponse> response = validateRequest(orderRequest);
         if (response.getStatusCode() != HttpStatus.OK) {
