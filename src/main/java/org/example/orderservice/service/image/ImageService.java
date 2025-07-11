@@ -37,9 +37,9 @@ public class ImageService {
 
     }
 
-    // here  we are adding @Transactional annotation to calling method
-// and @Async to caller method so caller method will run in new thread so if any rollback happens in caller method
-// calling will not get rolled back not recommended approach
+    // here  we are adding @Transactional annotation to caller method
+// and @Async to calling method so calling method will run in new thread so if any rollback happens in calling method
+// caller will not get rolled back not recommended approach
     @Transactional
     public String getImage(String id) {
         // Logic to retrieve an image by its ID
@@ -54,7 +54,7 @@ public class ImageService {
     }
 
     // here we are adding both @Transactional and @Async annotations
-    // but if the parent method is annotated with @Transactional then the Propagation that parent method has defined  will not supported by child method
+    // but if the parent/caller method is annotated with @Transactional then the Propagation that parent method has defined  will not be supported by child method
     //need to use this with precaution
     @Transactional
     @Async
@@ -66,7 +66,7 @@ public class ImageService {
     }
 
     // this method will execute in a new thread
-    // and caller method inside this method will be a part of this thread and will be treated as a new transaction
+    // and calling method inside this method will be a part of this thread and will be treated as a new transaction
     //recommended approach
     @Async
     public CompletableFuture<String> getImageType(String id) {
@@ -91,7 +91,7 @@ public class ImageService {
         }
     }
 
-    // here execption will be handled by SimpleAsyncUncaughtExceptionHandler
+    // here exception will be handled by SimpleAsyncUncaughtExceptionHandler
     // this handler is provided by Spring Boot
     @Async
     public void deleteImageThumbnail(String imageId) {
