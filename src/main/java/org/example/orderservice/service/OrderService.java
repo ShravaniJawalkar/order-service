@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Isolation;
@@ -47,7 +48,7 @@ public class OrderService {
     private Order orderType;
 
 
-    @Transactional(rollbackFor = Exception.class,transactionManager = "getTransactionManager",propagation = Propagation.REQUIRED,isolation = Isolation.DEFAULT)
+    @Transactional(rollbackFor = Exception.class, transactionManager = "getTransactionManager", propagation = Propagation.REQUIRED, isolation = Isolation.DEFAULT)
     public ResponseEntity<OrderResponse> createOrder(OrderRequest orderRequest) {
         ResponseEntity<OrderResponse> response = validateRequest(orderRequest);
         if (response.getStatusCode() != HttpStatus.OK) {
@@ -174,7 +175,6 @@ public class OrderService {
         }
     }
 
-
     public ResponseEntity<OrderDetails> getOrderById(Long orderId) {
         Optional<Orders> order = orderRepository.findById(orderId);
         OrderDetails orderResponse = new OrderDetails();
@@ -276,7 +276,7 @@ public class OrderService {
         return new ResponseEntity<>(orderResponseList, HttpStatus.OK);
     }
 
-    public String getProductType(){
+    public String getProductType() {
         return this.productServiceClient.getOrderType(this.orderType);
     }
 }
